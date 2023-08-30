@@ -1,0 +1,32 @@
+button{
+    /* background-color: aquamarine; */
+    /* margin-right: 20px; */
+    font-family: 'Quicksand', sans-serif;    
+    margin: 5px;
+    display: flex;
+    font-weight: 600;
+}
+
+.managernav{
+    display: flex;
+    align-items: center;
+    /* padding-left: 40px; */
+    /* font-family: Quicksand; */
+    white-space: nowrap;
+    /* font-weight: 500; */
+}
+
+
+.options{
+    /* margin-left: auto; */
+    display: flex;
+    /* justify-content:space-around; */
+    flex-wrap: wrap;
+    padding-left: 0;
+}
+
+.mantitle{
+    padding-left: 80px;
+    padding-right:20px ;
+}
+

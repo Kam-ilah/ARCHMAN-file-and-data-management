@@ -1,0 +1,6 @@
+.uploadButton{
+    font-family: 'Quicksand', sans-serif;    
+    margin: 5px;
+    display: flex;
+    font-weight: 600;
+}
