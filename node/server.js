@@ -5,67 +5,14 @@ const cors = require("cors");
 const fs = require("fs-extra");
 const path = require("path");
 const multer = require("multer");
-
+const decompress = require("decompress");
+const admzip = require("adm-zip");
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 // app.use("/api", routes);
-
-//joining path of directory
-// const directoryPath = path.join(__dirname, "../public_html/collection/");
-//passsing directoryPath and callback function
-// fs.readdir(directoryPath, function (err, files) {
-//   //handling error
-//   if (err) {
-//     return console.log("Unable to scan directory: " + err);
-//   }
-//   //listing all files using forEach
-//   files.forEach(function (file) {
-//     const filePath = path.join(directoryPath, file);
-
-//     fs.stat(filePath, function (err, stats) {
-//       if (err) {
-//         return console.log("Error getting file stats: " + err);
-//       }
-
-//       const sizeInBytes = stats.size;
-//       const sizeInKB = (sizeInBytes / 1000).toFixed(2);
-//       const fileType = path.extname(file).toLowerCase();
-//       const modifiedDate = new Date(stats.mtime).toLocaleString(); // Date and time of last modification
-
-//       console.log("File Name:", file);
-//       console.log("File Size (Bytes):", sizeInBytes);
-//       console.log("File Size (kB):", sizeInKB);
-//       console.log("File Type:", fileType);
-//       console.log("Modified Date:", modifiedDate);
-//       console.log("---------------------------");
-//     });
-//   });
-// });
-
-// app.get("/api/folders", async (req, res) => {
-//   try {
-//     const files = await fs.readdir(directoryPath);
-//     const fileData = await Promise.all(
-//       files.map(async (file) => {
-//         const filePath = path.join(directoryPath, file);
-//         const stats = await fs.stat(filePath);
-//         return {
-//           name: file,
-//           size: stats.size,
-//           type: path.extname(file).toLowerCase(),
-//           modified: stats.mtime,
-//         };
-//       })
-//     );
-//     res.json(fileData);
-//   } catch (error) {
-//     console.error("Error fetching files:", error);
-//     res.status(500).json({ error: "Internal server error" });
-//   }
-// });
 
 // Function to get the folder structure
 const getFolderStructure = async (folderPath) => {
@@ -182,10 +129,9 @@ app.delete("/api/delete/*?", async (req, res) => {
     // the path leads to a folder
     try {
       // Delete the folder using Node.js filesystem API
-      await fs.rmdir(fullDirectory, {
+      await fs.rm(fullDirectory, {
         recursive: true,
       });
-
       // Respond with success message
       res.status(200).json({ message: `${pathToFolder} deleted` });
     } catch (error) {
@@ -195,29 +141,127 @@ app.delete("/api/delete/*?", async (req, res) => {
   }
 });
 
-// app.get('/api',(req,res)=>{
-//     res.json({"users":["userOne", "userTwo","userThree"]}); // this will show on the webpage
-// });
-
-// app.post('/createfolder',(req, res)=>{
-//     const folderName =req.body.folderName;
-//     res.json("created the folder")
-// });
+// route for creating new folders
+app.post("/api/createfolder/*?", async (req, res) => {
+  const pathToFolder = req.params[0];
+  const fullDirectory = `../public_html/collection/${pathToFolder}`;
+  if (!fs.existsSync(fullDirectory)) {
+    fs.mkdirSync(fullDirectory, { recursive: true });
+    res.status(200).json({ message: "Folder created successfully." });
+  } else {
+    res.status(409).json({ message: "Folder already exists." });
+  }
+});
 
 // app.get('/files/:filename/download',(req, res)=>{
 //     const {filename} = req.params;
 
 // });
 
-// app.delete('/files/:filename',(req, res)=>{
+// Route for unzipping folders
+// app.post("/api/unzip/*?", async (req, res) => {
+//   const pathToFolder = req.params[0];
+//   const fullDirectory = `../public_html/collection/${pathToFolder}`;
+//   console.log("this was the path to folder", pathToFolder);
+//   console.log("this was the full dir", fullDirectory);
 
+//   // remove the filename to check for zipped file
+//   var urlPath = fullDirectory.split("/");
+//   const zippedfile = urlPath.pop(); //saving only the folder name
+
+//   const pathDir = pathToFolder.split(".");
+//   pathDir.pop();
+//   console.log("PATHDIR", pathDir);
+//   const dest = `../public_html/collection/${pathDir}`;
+//   // if the directory doesn't exits, create it and put the zipped conent in there
+//   if (!fs.existsSync(dest)) {
+//     // fs.mkdirSync(dest, { recursive: true });
+//     // checking if the path is a zipped file
+//     if (zippedfile.endsWith(".zip")) {
+//       res.json({ message: `${zippedfile} is not a zipped file` });
+//     }
+//     //   const zip = new admzip(fullDirectory);
+//     //   try {
+//     //     zip.extractAllTo(dest, false, (error) => {
+//     //       if (error) {
+//     //         console.log(error);
+//     //         reject(error);
+//     //       } else {
+//     //         console.log(`Extracted to "${outputDirectory}" successfully`);
+//     //         resolve();
+//     //       }
+//     //     });
+//     //     res.status(200).json({ message: "folder unzipped successfully" });
+//     //   } catch (error) {
+//     //     console.log("there was error", error);
+//     //   }
+//     // }
+//   } else {
+//     // tell user the file already unzipped
+//   }
+
+//   //
+//   // console.log("the file you wanted to unzip", zippedfile);
+//   // // const dest = urlPath.join("/");
+//   // console.log("here is the path to dest", dest);
+
+//   // // checking if the path is a zipped file
+//   // if (zippedfile.endsWith(".zip")) {
+//   //   // res.status(200).json({ message: `${zippedfile} is not a zipped file` });
+
+//   //   const zip = new admzip(fullDirectory);
+//   //   try {
+//   //     zip.extractAllTo(dest, false, (error) => {
+//   //       if (error) {
+//   //         console.log(error);
+//   //         reject(error);
+//   //       } else {
+//   //         console.log(`Extracted to "${outputDirectory}" successfully`);
+//   //         resolve();
+//   //       }
+//   //     });
+//   //     res.status(200).json({ message: "folder unzipped successfully" });
+//   //   } catch (error) {
+//   //     console.log("there was error", error);
+//   //   }
+//   // }
 // });
 
-// Starting the server
+app.post("/api/rename/*?", (req, res) => {
+  const currentPath = req.body.currentPath || "";
+  const selectedItem = req.body.selectedRename;
+  const newFolderName = req.body.newFolderName;
+  let oldDirName, newDirName;
+  console.log("the current path", currentPath);
+  if (currentPath) {
+    oldDirName = `../public_html/collection/${currentPath}/${selectedItem}`;
+    newDirName = `../public_html/collection/${currentPath}/${newFolderName}`;
+  } else {
+    oldDirName = `../public_html/collection/${selectedItem}`;
+    newDirName = `../public_html/collection/${newFolderName}`;
+  }
+  const fileExtension = path.extname(selectedItem);
+  console.log("file extension", fileExtension);
+  if (fileExtension) {
+    console.log("there was a file extension");
+    newDirName = `${newDirName}${fileExtension}`;
+  }
 
+  fs.rename(oldDirName, newDirName, function (err) {
+    if (err) {
+      console.error("Error renaming directory:", err);
+      res.status(500).json({ error: "Failed to rename directory" });
+    } else {
+      console.log("Successfully renamed the directory.");
+      res.status(200).json({ message: "Directory renamed successfully" });
+    }
+  });
+});
+
+// Starting the server
 app.listen(3000, (error) => {
   if (!error) console.log("Hello from server on port 3000");
-  else console.log("error occurred babe", error);
+  else console.log("error occurred", error);
 });
 
 // /*
