@@ -1,12 +1,12 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-// const routes = require("./routes");
 const fs = require("fs-extra");
 const path = require("path");
 const multer = require("multer");
-const decompress = require("decompress");
-const admzip = require("adm-zip");
+const archiver = require("archiver");
+
+// const admzip = require("adm-zip");
 const app = express();
 
 // Middleware
@@ -97,9 +97,6 @@ const upload = multer({ storage });
 
 // Define a route for handling file uploads
 app.post("/api/upload/*?", upload.array("files"), (req, res) => {
-  // Handle saving the uploaded files to the target directory
-  // You may need to perform error handling, validation, etc. here
-  // For simplicity, this example assumes successful upload
   res.status(200).json({ message: "Files uploaded successfully" });
 });
 
@@ -153,10 +150,65 @@ app.post("/api/createfolder/*?", async (req, res) => {
   }
 });
 
-// app.get('/files/:filename/download',(req, res)=>{
-//     const {filename} = req.params;
-
+// Route for downloading
+// app.get("/api/download/*?", (req, res) => {
+//   const recPath = req.params[0];
+//   const pathSplit = recPath.split("/");
+//   const filename = pathSplit.pop();
+//   const currentPath = pathSplit.join("/");
+//   // const currentPath = req.params.currentPath || "";
+//   console.log("here is the file name", filename);
+//   console.log("here is the current path", currentPath);
+//   let fullpath;
+//   if (currentPath) {
+//     fullpath = `../public_html/collection/${currentPath}/${filename}`;
+//     console.log("the full path", fullpath);
+//   } else {
+//     fullpath = `../public_html/collection/${filename}`;
+//     console.log("the full path", fullpath);
+//   }
+//   res.download(fullpath, filename, (err) => {
+//     if (err) {
+//       console.error("Error downloading file:", err);
+//       res.status(500).send("Error downloading file");
+//     } else {
+//       console.log("File downloaded:", filename);
+//     }
+//   });
 // });
+
+app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json());
+
+app.post("/api/download/*?", async (req, res) => {
+  const { items } = req.body;
+  const currentPath = req.params[0] || "";
+  const zipFileName = "downloaded_files.zip";
+  const zipFilePath = path.join(__dirname, "public", zipFileName);
+
+  const archive = archiver("zip", {});
+
+  res.attachment(zipFileName);
+  archive.pipe(res);
+  for (const item of items) {
+    let itemPath;
+
+    if (currentPath) {
+      itemPath = path.join("../public_html/collection/", currentPath, item);
+    } else {
+    }
+    itemPath = path.join("../public_html/collection/", item);
+
+    // const itemPath = path.join(__dirname, "public", item);
+
+    if (fs.existsSync(itemPath)) {
+      archive.file(itemPath, { name: item });
+    }
+  }
+  res.setHeader("Content-Type", "application/zip");
+
+  archive.finalize();
+});
 
 // Route for unzipping folders
 // app.post("/api/unzip/*?", async (req, res) => {
