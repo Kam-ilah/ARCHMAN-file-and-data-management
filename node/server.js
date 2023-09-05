@@ -150,6 +150,18 @@ app.post("/api/createfolder/*?", async (req, res) => {
   }
 });
 
+// route for creating new folders from hierarchy
+app.post("/api/hierarchy/*?", async (req, res) => {
+  const pathToFolder = req.params[0];
+  const fullDirectory = `../public_html/collection/${pathToFolder}`;
+  if (!fs.existsSync(fullDirectory)) {
+    fs.mkdirSync(fullDirectory, { recursive: true });
+    res.status(200).json({ message: "Folder created successfully." });
+  } else {
+    res.status(409).json({ message: "Folder already exists." });
+  }
+});
+
 // Route for downloading
 // app.get("/api/download/*?", (req, res) => {
 //   const recPath = req.params[0];
@@ -196,8 +208,8 @@ app.post("/api/download/*?", async (req, res) => {
     if (currentPath) {
       itemPath = path.join("../public_html/collection/", currentPath, item);
     } else {
+      itemPath = path.join("../public_html/collection/", item);
     }
-    itemPath = path.join("../public_html/collection/", item);
 
     // const itemPath = path.join(__dirname, "public", item);
 
