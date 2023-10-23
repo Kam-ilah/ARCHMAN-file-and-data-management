@@ -13,14 +13,11 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 // app.use("/api", routes);
+app.use(express.json());
 
 // Function to get the folder structure
 const getFolderStructure = async (folderPath) => {
   const folderName = path.basename(folderPath);
-  // console.log("here is the folername:", folderName);
-  // console.log("here is the path:", folderPath);
-  // console.log("reading the contents of the folder");
-  // const files = await fs.readdirSync(folderPath);
   const files = await fs.readdir(folderPath);
   // console.log(files);
   const folder = {
@@ -85,7 +82,9 @@ app.get("/api/folders/?*", async (req, res) => {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const currentPath = req.params[0] || ""; // Get the current path from the URL parameter
-    console.log("path to upload to", currentPath);
+    // console.log("the actual file path from server", filepath);
+    console.log("path to upload to", currentPath, "for", file);
+
     cb(null, path.join("../public_html/collection/", currentPath)); // Save files in the current directory
   },
   filename: (req, file, cb) => {
@@ -97,6 +96,7 @@ const upload = multer({ storage });
 
 // Define a route for handling file uploads
 app.post("/api/upload/*?", upload.array("files"), (req, res) => {
+  // console.log("try this path", req.params[0]);
   res.status(200).json({ message: "Files uploaded successfully" });
 });
 
@@ -162,36 +162,6 @@ app.post("/api/hierarchy/*?", async (req, res) => {
   }
 });
 
-// Route for downloading
-// app.get("/api/download/*?", (req, res) => {
-//   const recPath = req.params[0];
-//   const pathSplit = recPath.split("/");
-//   const filename = pathSplit.pop();
-//   const currentPath = pathSplit.join("/");
-//   // const currentPath = req.params.currentPath || "";
-//   console.log("here is the file name", filename);
-//   console.log("here is the current path", currentPath);
-//   let fullpath;
-//   if (currentPath) {
-//     fullpath = `../public_html/collection/${currentPath}/${filename}`;
-//     console.log("the full path", fullpath);
-//   } else {
-//     fullpath = `../public_html/collection/${filename}`;
-//     console.log("the full path", fullpath);
-//   }
-//   res.download(fullpath, filename, (err) => {
-//     if (err) {
-//       console.error("Error downloading file:", err);
-//       res.status(500).send("Error downloading file");
-//     } else {
-//       console.log("File downloaded:", filename);
-//     }
-//   });
-// });
-
-app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json());
-
 app.post("/api/download/*?", async (req, res) => {
   const { items } = req.body;
   const currentPath = req.params[0] || "";
@@ -202,6 +172,29 @@ app.post("/api/download/*?", async (req, res) => {
 
   res.attachment(zipFileName);
   archive.pipe(res);
+
+  async function addFileToArchive(filePath, zipPath) {
+    return new Promise((resolve, reject) => {
+      archive.file(filePath, { name: zipPath });
+      resolve();
+    });
+  }
+
+  async function addFolderToArchive(folderPath, parentZipPath) {
+    const files = fs.readdirSync(folderPath);
+
+    for (const file of files) {
+      const filePath = path.join(folderPath, file);
+      const zipPath = path.join(parentZipPath, file);
+
+      if (fs.statSync(filePath).isDirectory()) {
+        await addFolderToArchive(filePath, zipPath);
+      } else {
+        await addFileToArchive(filePath, zipPath);
+      }
+    }
+  }
+
   for (const item of items) {
     let itemPath;
 
@@ -211,12 +204,15 @@ app.post("/api/download/*?", async (req, res) => {
       itemPath = path.join("../public_html/collection/", item);
     }
 
-    // const itemPath = path.join(__dirname, "public", item);
-
     if (fs.existsSync(itemPath)) {
-      archive.file(itemPath, { name: item });
+      if (fs.statSync(itemPath).isDirectory()) {
+        await addFolderToArchive(itemPath, item);
+      } else {
+        await addFileToArchive(itemPath, item);
+      }
     }
   }
+
   res.setHeader("Content-Type", "application/zip");
 
   archive.finalize();
