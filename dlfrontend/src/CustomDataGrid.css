@@ -1,0 +1,6 @@
+/* In your CSS or stylesheet file */
+.customDG .MuiDataGrid-noRowsOverlay {
+  width: 100%; /* Adjust the width as needed */
+  text-align: center; /* Center-align the label text */
+  padding: 20px; /* Add padding for better visibility */
+}

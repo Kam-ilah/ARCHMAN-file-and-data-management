@@ -1,8 +1,8 @@
-button{
-    /* background-color: aquamarine; */
-    /* margin-right: 20px; */
-    font-family: 'Quicksand', sans-serif;    
-    margin: 5px;
-    display: flex;
-    font-weight: 600;
+button {
+  /* background-color: aquamarine; */
+  /* margin-right: 20px; */
+  font-family: "Quicksand", sans-serif;
+  margin: 5px;
+  display: flex;
+  font-weight: 600;
 }

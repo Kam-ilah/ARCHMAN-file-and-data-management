@@ -6,13 +6,13 @@ const path = require("path");
 const multer = require("multer");
 const archiver = require("archiver");
 
+// used for handling zipping
 // const admzip = require("adm-zip");
 const app = express();
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
-// app.use("/api", routes);
 app.use(express.json());
 
 // Function to get the folder structure
@@ -27,20 +27,23 @@ const getFolderStructure = async (folderPath) => {
   };
 
   for (const file of files) {
-    const filePath = path.join(folderPath, file);
-    const stats = await fs.stat(filePath);
+    if (file !== ".DS_Store") {
+      const filePath = path.join(folderPath, file);
+      const stats = await fs.stat(filePath);
 
-    if (stats.isFile()) {
-      // console.log("file found");
-      folder.files.push({
-        name: file,
-        type: path.extname(file).toLowerCase(),
-        size: stats.size, // Size of the file in bytes
-        lastModified: stats.mtime,
-      });
-    } else if (stats.isDirectory()) {
-      const subFolder = await getFolderStructure(filePath);
-      folder.children.push(subFolder);
+      if (stats.isFile()) {
+        // track any files found
+        folder.files.push({
+          name: file,
+          type: path.extname(file).toLowerCase(),
+          size: stats.size, // Size of the file in bytes
+          lastModified: stats.mtime,
+        });
+      } else if (stats.isDirectory()) {
+        // subfolders are placed in children array
+        const subFolder = await getFolderStructure(filePath);
+        folder.children.push(subFolder);
+      }
     }
   }
   return folder;
@@ -50,23 +53,17 @@ const getFolderStructure = async (folderPath) => {
 app.get("/api/folders/?*", async (req, res) => {
   try {
     const folderPath1 = req.params[0] || "";
-    // console.log("thhe request params:", req);
-    // console.log(`Folder path: ${folderPath1}`);
+
     // no folder was selected - home screen
     if (folderPath1 === "") {
-      // console.log(
-      //   "Here is the folder name from the first get ",
-      //   req.params.name
-      // );
       const rootFolder = await getFolderStructure("../public_html/collection/");
       res.json(rootFolder);
     } else {
-      // Not home screen - folder selected
+      // Not home screen -> folder selected
       const newFolderPath = path.join(
         "../public_html/collection/",
         folderPath1
       );
-      // console.log("new folder path will be:", newFolderPath);
       const folderNameData = await getFolderStructure(newFolderPath);
       res.json(folderNameData);
     }
@@ -78,25 +75,35 @@ app.get("/api/folders/?*", async (req, res) => {
 
 // Handling Uploads
 
-// Set up multer storage and upload middleware
+// Set up multer middleware to handle uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const currentPath = req.params[0] || ""; // Get the current path from the URL parameter
-    // console.log("the actual file path from server", filepath);
-    console.log("path to upload to", currentPath, "for", file);
+    const destinationPath = path.join(
+      "../public_html/collection/",
+      currentPath
+    );
 
-    cb(null, path.join("../public_html/collection/", currentPath)); // Save files in the current directory
+    // Check if the file or folder already exists to prevent overwrite, include the file/folder name
+    if (fs.existsSync(path.join(destinationPath, file.originalname))) {
+      console.log("File or folder already exists at:", destinationPath);
+      // Do not proceed with the upload, call the callback with an error
+      cb(new Error("File or folder already exists"));
+    } else {
+      // The file or folder does not exist, proceed with the upload
+      cb(null, destinationPath);
+    }
   },
   filename: (req, file, cb) => {
     cb(null, file.originalname); // Use the original filename
   },
 });
-
+// create instance of middleware using the storage engine defined above
 const upload = multer({ storage });
 
 // Define a route for handling file uploads
 app.post("/api/upload/*?", upload.array("files"), (req, res) => {
-  // console.log("try this path", req.params[0]);
+  // Files have been uploaded successfully at this point
   res.status(200).json({ message: "Files uploaded successfully" });
 });
 
@@ -109,8 +116,9 @@ app.delete("/api/delete/*?", async (req, res) => {
   let stats = fs.statSync(fullDirectory);
   if (stats.isFile()) {
     // the path leads to a file
-    // try to delete it
+    // code to delete it
     fs.unlink(fullDirectory, (err) => {
+      // incase the file doesn't exist
       if (err && err.code == "ENOENT") {
         console.info("Error! File doesn't exist.");
       } else if (err) {
@@ -142,6 +150,7 @@ app.delete("/api/delete/*?", async (req, res) => {
 app.post("/api/createfolder/*?", async (req, res) => {
   const pathToFolder = req.params[0];
   const fullDirectory = `../public_html/collection/${pathToFolder}`;
+  // check if the path doesn't already exits, if not, create the path
   if (!fs.existsSync(fullDirectory)) {
     fs.mkdirSync(fullDirectory, { recursive: true });
     res.status(200).json({ message: "Folder created successfully." });
@@ -292,30 +301,43 @@ app.post("/api/rename/*?", (req, res) => {
   const selectedItem = req.body.selectedRename;
   const newFolderName = req.body.newFolderName;
   let oldDirName, newDirName;
-  console.log("the current path", currentPath);
+  // console.log("the current path", currentPath);
+
+  // setting the path
+  // if the current path is not an empty string
   if (currentPath) {
     oldDirName = `../public_html/collection/${currentPath}/${selectedItem}`;
     newDirName = `../public_html/collection/${currentPath}/${newFolderName}`;
   } else {
+    // if it is an empty sting->home/root directory
     oldDirName = `../public_html/collection/${selectedItem}`;
     newDirName = `../public_html/collection/${newFolderName}`;
   }
+
+  // if the file bring rename has an extesion, add it
   const fileExtension = path.extname(selectedItem);
-  console.log("file extension", fileExtension);
+  // console.log("file extension", fileExtension);
   if (fileExtension) {
     console.log("there was a file extension");
     newDirName = `${newDirName}${fileExtension}`;
+    if (fs.existsSync(newDirName)) {
+      return res.status(409).json({ error: "Directory already exists" });
+    }
   }
 
-  fs.rename(oldDirName, newDirName, function (err) {
-    if (err) {
-      console.error("Error renaming directory:", err);
-      res.status(500).json({ error: "Failed to rename directory" });
-    } else {
-      console.log("Successfully renamed the directory.");
-      res.status(200).json({ message: "Directory renamed successfully" });
-    }
-  });
+  if (fs.existsSync(newDirName)) {
+    return res.status(409).json({ error: "Directory already exists" });
+  } else {
+    fs.rename(oldDirName, newDirName, function (err) {
+      if (err) {
+        console.error("Error renaming directory:", err);
+        res.status(500).json({ error: "Failed to rename directory" });
+      } else {
+        console.log("Successfully renamed the directory.");
+        res.status(200).json({ message: "Directory renamed successfully" });
+      }
+    });
+  }
 });
 
 // Starting the server
@@ -325,7 +347,7 @@ app.listen(3000, (error) => {
 });
 
 // /*
-// / --> res = Hello there friend
+// routes for functionality
 // /uploadfile --> POST  = succesfully uploaded / failed to upload
 // /createfolder --> POST = succesfully created folder / failed to create folder
 // /downloadfile --> GET = download complete/ download failed
